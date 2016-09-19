@@ -1,0 +1,293 @@
+{ "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Create a Locust.io swarm with a fixed master and an ASG of slaves - built from an Amazon Linux AMI",
+
+  "Mappings" : {
+    "VpcCidrs" : {
+      "eu-central-1" : { "vpc" : "10.202.0.0/16", "pubsubnet1" : "10.202.0.0/24", "pubsubnet2" : "10.202.1.0/24", "pubsubnet3" : "10.202.2.0/24" },
+      "eu-west-1" : { "vpc" : "10.202.0.0/16", "pubsubnet1" : "10.202.0.0/24", "pubsubnet2" : "10.202.1.0/24", "pubsubnet3" : "10.202.2.0/24" },
+      "us-east-1" : { "vpc" : "10.202.0.0/16", "pubsubnet1" : "10.202.0.0/24", "pubsubnet2" : "10.202.1.0/24", "pubsubnet3" : "10.202.2.0/24" },
+      "us-west-1" : { "vpc" : "10.202.0.0/16", "pubsubnet1" : "10.202.0.0/24", "pubsubnet2" : "10.202.1.0/24", "pubsubnet3" : "10.202.2.0/24" },
+      "us-west-2" : { "vpc" : "10.202.0.0/16", "pubsubnet1" : "10.202.0.0/24", "pubsubnet2" : "10.202.1.0/24", "pubsubnet3" : "10.202.2.0/24" }
+    }
+  },
+
+  "Parameters" : {
+    "LocustioTargetHost" : {
+      "Type" : "String",
+      "Description" : "Load test target host",
+      "Default" : "http://andypowe11.net"
+    },
+
+    "LocustioConfigFile" : {
+      "Type" : "String",
+      "Description" : "Load test configuration",
+      "Default" : "https://s3-eu-west-1.amazonaws.com/eduserv-dev-locustio/default.py"
+    },
+
+    "LocustioAmiId" : {
+      "Type" : "String",
+      "Description" : "Amazon Linux AMI Identifier",
+      "Default" : "ami-f9dd458a"
+    },
+
+    "LocustioInstanceType" : {
+      "Type" : "String",
+      "Description" : "EC2 instance type for the locust.io slaves",
+      "Default" : "t2.micro",
+      "AllowedValues" : [
+        "t2.micro","t2.small","t2.medium","t2.large","m4.large","m4.xlarge","m4.2xlarge","m4.4xlarge","m4.10xlarge","m3.medium",
+        "m3.large","m3.xlarge","m3.2xlarge","c4.large","c4.xlarge","c4.2xlarge","c4.4xlarge","c4.8xlarge","c3.large","c3.xlarge",
+        "c3.2xlarge","c3.4xlarge","c3.8xlarge","r3.large","r3.xlarge","r3.2xlarge","r3.4xlarge","r3.8xlarge","i2.xlarge",
+        "i2.2xlarge","i2.4xlarge","i2.8xlarge" ],
+      "ConstraintDescription" : "must be a valid EC2 instance type."
+    },
+
+    "KeyName" : {
+      "Type" : "AWS::EC2::KeyPair::KeyName",
+      "Description" : "Name of an existing EC2 KeyPair to enable SSH access to the locust.io instances",
+      "Default" : ""
+    },
+
+    "NumSlaves" : {
+      "Type" : "Number",
+      "Description" : "Number of locust.io slaves",
+      "Default" : "2"
+    },
+
+    "VpcAvailabilityZones" : {
+      "Type" : "CommaDelimitedList",
+      "Description" : "Comma-delimited list of three VPC availability zones in which to create subnets",
+      "Default" : "eu-west-1a,eu-west-1b,eu-west-1c"
+    },
+
+    "EduservBRMNetwork" : {
+      "Type" : "String",
+      "Description" : "Eduserv BRM gateway address for remote SSH access",
+      "Default" : "188.92.143.3/32"
+    }
+  },
+
+  "Resources" : {
+    "Vpc" : {
+      "Type" : "AWS::EC2::VPC",
+      "Properties" : {
+        "CidrBlock" : { "Fn::FindInMap" : [ "VpcCidrs", { "Ref" : "AWS::Region" }, "vpc" ] },
+        "EnableDnsSupport" : "true",
+        "EnableDnsHostnames" : "true",
+        "Tags": [
+          {"Key" : "Name", "Value" : {"Fn::Join": [ "-", [{"Ref": "AWS::StackName"}, "vpc"]]}}
+        ]
+      }
+    },
+
+    "PubSubnetAz1" : {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "VpcId" : { "Ref" : "Vpc" },
+        "CidrBlock" : { "Fn::FindInMap" : [ "VpcCidrs", { "Ref" : "AWS::Region" }, "pubsubnet1" ] },
+        "AvailabilityZone" : { "Fn::Select" : [ "0", { "Ref" : "VpcAvailabilityZones" } ] },
+        "Tags": [
+          {"Key" : "Name", "Value" : {"Fn::Join": [ "-", [{"Ref": "AWS::StackName"}, "pubsubnet1"]]}}
+        ]
+      }
+    },
+
+    "PubSubnetAz2" : {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "VpcId" : { "Ref" : "Vpc" },
+        "CidrBlock" : { "Fn::FindInMap" : [ "VpcCidrs", { "Ref" : "AWS::Region" }, "pubsubnet2" ] },
+        "AvailabilityZone" : { "Fn::Select" : [ "1", { "Ref" : "VpcAvailabilityZones" } ] },
+        "Tags": [
+          {"Key" : "Name", "Value" : {"Fn::Join": [ "-", [{"Ref": "AWS::StackName"}, "pubsubnet2"]]}}
+        ]
+      }
+    },
+
+    "PubSubnetAz3" : {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "VpcId" : { "Ref" : "Vpc" },
+        "CidrBlock" : { "Fn::FindInMap" : [ "VpcCidrs", { "Ref" : "AWS::Region" }, "pubsubnet3" ] },
+        "AvailabilityZone" : { "Fn::Select" : [ "2", { "Ref" : "VpcAvailabilityZones" } ] },
+        "Tags": [
+          {"Key" : "Name", "Value" : {"Fn::Join": [ "-", [{"Ref": "AWS::StackName"}, "pubsubnet3"]]}}
+        ]
+      }
+    },
+
+    "InternetGateway" : {
+      "Type" : "AWS::EC2::InternetGateway",
+      "Properties" : {
+        "Tags": [
+          {"Key" : "Name", "Value" : {"Fn::Join": [ "-", [{"Ref": "AWS::StackName"}, "igw"]]}}
+        ]
+      }
+    },
+
+    "AttachGateway" : {
+      "Type" : "AWS::EC2::VPCGatewayAttachment",
+      "Properties" : {
+        "VpcId" : { "Ref" : "Vpc" },
+        "InternetGatewayId" : { "Ref" : "InternetGateway" }
+      }
+    },
+
+    "RouteViaIgw" : {
+      "Type" : "AWS::EC2::RouteTable",
+      "Properties" : {
+        "VpcId" : {"Ref" : "Vpc"}
+      }
+    },
+
+    "PublicRouteViaIgw" : {
+      "Type" : "AWS::EC2::Route",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "RouteViaIgw" },
+        "DestinationCidrBlock" : "0.0.0.0/0",
+        "GatewayId" : { "Ref" : "InternetGateway" }
+      }
+    },
+
+    "PubSubnet1RouteTableAssociation" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "SubnetId" : { "Ref" : "PubSubnetAz1" },
+        "RouteTableId" : { "Ref" : "RouteViaIgw" }
+      }
+    },
+
+    "PubSubnet2RouteTableAssociation" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "SubnetId" : { "Ref" : "PubSubnetAz2" },
+        "RouteTableId" : { "Ref" : "RouteViaIgw" }
+      }
+    },
+
+    "PubSubnet3RouteTableAssociation" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "SubnetId" : { "Ref" : "PubSubnetAz3" },
+        "RouteTableId" : { "Ref" : "RouteViaIgw" }
+      }
+    },
+
+    "MasterLocustioSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Master locust.io Allowed Ports",
+        "VpcId" : { "Ref" : "Vpc" },
+        "SecurityGroupIngress" : [
+          { "IpProtocol" : "tcp", "FromPort" : "22", "ToPort" : "22", "CidrIp" : { "Ref" : "EduservBRMNetwork" } },
+          { "IpProtocol" : "tcp", "FromPort" : "80", "ToPort" : "80", "CidrIp" : "0.0.0.0/0" },
+          { "IpProtocol" : "tcp", "FromPort" : "5557", "ToPort" : "5558", "SourceSecurityGroupId" : { "Ref" : "SlaveLocustioSecurityGroup" } },
+          { "IpProtocol" : "icmp", "FromPort" : "8", "ToPort" : "-1", "CidrIp" : "0.0.0.0/0" }
+        ],
+        "Tags": [
+          {"Key" : "Name", "Value" : {"Fn::Join": [ "-", [{"Ref": "AWS::StackName"}, "mastersecuritygroup"]]}}
+        ]
+      }
+    },
+
+    "SlaveLocustioSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Slave locust.io Allowed Ports",
+        "VpcId" : { "Ref" : "Vpc" },
+        "SecurityGroupIngress" : [
+          { "IpProtocol" : "tcp", "FromPort" : "22", "ToPort" : "22", "CidrIp" : { "Ref" : "EduservBRMNetwork" } },
+          { "IpProtocol" : "icmp", "FromPort" : "8", "ToPort" : "-1", "CidrIp" : "0.0.0.0/0" }
+        ],
+        "Tags": [
+          {"Key" : "Name", "Value" : {"Fn::Join": [ "-", [{"Ref": "AWS::StackName"}, "slavesecuritygroup"]]}}
+        ]
+      }
+    },
+
+    "MasterLocustioInstance" : {
+      "Type" : "AWS::EC2::Instance",
+      "DependsOn" : "InternetGateway",
+      "Properties" : {
+        "AvailabilityZone" : { "Fn::Select" : [ "0", { "Ref" : "VpcAvailabilityZones" } ] },
+        "ImageId" : { "Ref" : "LocustioAmiId" },
+        "InstanceType" : { "Ref" : "LocustioInstanceType" },
+        "KeyName" : { "Ref" : "KeyName" },
+        "NetworkInterfaces": [ {
+          "AssociatePublicIpAddress": "true",
+          "DeleteOnTermination" : "true",
+          "DeviceIndex": "0",
+          "SubnetId": { "Ref" : "PubSubnetAz1" },
+          "GroupSet" : [ { "Ref" : "MasterLocustioSecurityGroup" } ]
+        } ],
+        "UserData" : {
+          "Fn::Base64" : { "Fn::Join" : [ "", [
+            "#!/bin/bash\n",
+            "yum -y update\n",
+            "yum -y groupinstall \"Development Tools\"\n",
+            "pip install locustio\n",
+            "yum -y install wget\n",
+            "mkdir /locust\n",
+            "cd /locust\n",
+            "wget -O loadtest.py ", { "Ref" : "LocustioConfigFile" }, "\n",
+            "locust -f /locust/loadtest.py --host=", { "Ref" : "LocustioTargetHost" }, " --port 80 --master\n"
+          ] ] }
+        },
+        "Tags": [
+          {"Key" : "Name", "Value" : {"Fn::Join": [ "-", [{"Ref": "AWS::StackName"}, "master"]]}}
+        ]
+      }
+    },
+
+    "SlaveLocustioInstanceLc" : {
+      "DependsOn" : "MasterLocustioInstance",
+      "Type" : "AWS::AutoScaling::LaunchConfiguration",
+      "Properties" : {
+        "ImageId" : { "Ref" : "LocustioAmiId" },
+        "InstanceType" : { "Ref" : "LocustioInstanceType" },
+        "AssociatePublicIpAddress" : true,
+        "KeyName" : { "Ref" : "KeyName" },
+        "SecurityGroups" : [ { "Ref" : "SlaveLocustioSecurityGroup" } ],
+        "UserData" : {
+          "Fn::Base64" : { "Fn::Join" : [ "", [
+            "#!/bin/bash\n",
+            "yum -y update\n",
+            "yum -y groupinstall \"Development Tools\"\n",
+            "pip install locustio\n",
+            "yum -y install wget\n",
+            "mkdir /locust\n",
+            "yum -y install wget\n",
+            "cd /locust\n",
+            "wget -O loadtest.py ", { "Ref" : "LocustioConfigFile" }, "\n",
+            "locust -f /locust/loadtest.py --host=", { "Ref" : "LocustioTargetHost" }, " --slave --master-host ", { "Fn::GetAtt" : [ "MasterLocustioInstance", "PrivateIp" ] }, "\n"
+          ] ] }
+        }
+      }
+    },
+
+    "SlaveLocustioInstanceAsg" : {
+      "DependsOn" : "MasterLocustioInstance",
+      "Type" : "AWS::AutoScaling::AutoScalingGroup",
+      "Properties" : {
+        "AvailabilityZones" :
+          [ { "Fn::Select" : [ "0", { "Ref" : "VpcAvailabilityZones" } ] }, { "Fn::Select" : [ "1", { "Ref" : "VpcAvailabilityZones" } ] }, { "Fn::Select" : [ "2", { "Ref" : "VpcAvailabilityZones" } ] } ],
+        "VPCZoneIdentifier" : [ { "Fn::Join" : [",", [ { "Ref" : "PubSubnetAz1" }, { "Ref" : "PubSubnetAz2" }, { "Ref" : "PubSubnetAz3" } ] ] } ],
+        "LaunchConfigurationName" : { "Ref" : "SlaveLocustioInstanceLc" },
+        "MinSize" : "1",
+        "MaxSize" : { "Ref" : "NumSlaves" },
+        "DesiredCapacity" : { "Ref" : "NumSlaves" },
+        "Tags" : [
+          { "Key" : "Name", "Value" : { "Fn::Join" : ["-", [ { "Ref" : "AWS::StackName" }, "slave" ] ] }, "PropagateAtLaunch" : "true" }
+        ]
+      }
+    }
+  },
+
+  "Outputs" : {
+    "MasterURL" : {
+      "Description" : "URL for the locust.io master",
+      "Value" : { "Fn::Join" : ["", [ "http://", { "Fn::GetAtt" : [ "MasterLocustioInstance", "PublicIp" ] }, ":80/" ] ] }
+    }
+  }
+}
