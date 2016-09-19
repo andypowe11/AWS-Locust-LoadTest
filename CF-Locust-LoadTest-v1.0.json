@@ -226,12 +226,13 @@
             "#!/bin/bash\n",
             "yum -y update\n",
             "yum -y groupinstall \"Development Tools\"\n",
+            "pip install pyzmq\n",
             "pip install locustio\n",
             "yum -y install wget\n",
             "mkdir /locust\n",
             "cd /locust\n",
             "wget -O loadtest.py ", { "Ref" : "LocustioConfigFile" }, "\n",
-            "locust -f /locust/loadtest.py --host=", { "Ref" : "LocustioTargetHost" }, " --port 80 --master\n"
+            "/usr/local/bin/locust -f /locust/loadtest.py --host=", { "Ref" : "LocustioTargetHost" }, " --port 80 --master\n"
           ] ] }
         },
         "Tags": [
@@ -254,13 +255,14 @@
             "#!/bin/bash\n",
             "yum -y update\n",
             "yum -y groupinstall \"Development Tools\"\n",
+            "pip install pyzmq\n",
             "pip install locustio\n",
             "yum -y install wget\n",
             "mkdir /locust\n",
             "yum -y install wget\n",
             "cd /locust\n",
             "wget -O loadtest.py ", { "Ref" : "LocustioConfigFile" }, "\n",
-            "locust -f /locust/loadtest.py --host=", { "Ref" : "LocustioTargetHost" }, " --slave --master-host ", { "Fn::GetAtt" : [ "MasterLocustioInstance", "PrivateIp" ] }, "\n"
+            "/usr/local/bin/locust -f /locust/loadtest.py --host=", { "Ref" : "LocustioTargetHost" }, " --slave --master-host ", { "Fn::GetAtt" : [ "MasterLocustioInstance", "PrivateIp" ] }, "\n"
           ] ] }
         }
       }
