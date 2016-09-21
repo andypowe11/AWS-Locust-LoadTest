@@ -47,7 +47,7 @@
 
     "LocustioInstanceType" : {
       "Type" : "String",
-      "Description" : "EC2 instance type for the Locust.io slaves",
+      "Description" : "EC2 instance type for the Locust.io master and slaves",
       "Default" : "t2.micro",
       "AllowedValues" : [
         "t2.micro","t2.small","t2.medium","t2.large","m4.large","m4.xlarge","m4.2xlarge","m4.4xlarge","m4.10xlarge","m3.medium",
@@ -67,12 +67,6 @@
       "Type" : "Number",
       "Description" : "Number of Locust.io slaves",
       "Default" : "2"
-    },
-
-    "VpcAvailabilityZones" : {
-      "Type" : "CommaDelimitedList",
-      "Description" : "Comma-delimited list of three VPC availability zones in which to create subnets",
-      "Default" : "eu-west-1a,eu-west-1b,eu-west-1c"
     },
 
     "AllowedSshSourceCidr" : {
@@ -100,7 +94,7 @@
       "Properties" : {
         "VpcId" : { "Ref" : "Vpc" },
         "CidrBlock" : { "Fn::FindInMap" : [ "Region2Cidrs", { "Ref" : "AWS::Region" }, "subneta" ] },
-        "AvailabilityZone" : { "Fn::Join": [ "", [ { "Ref" : "AWS::Region" }, "a" ] ] } },
+        "AvailabilityZone" : { "Fn::Join": [ "", [ { "Ref" : "AWS::Region" }, "a" ] ] },
         "Tags": [
           { "Key" : "Name", "Value" : { "Fn::Join" : [ "-", [ { "Ref" : "AWS::StackName"}, "subneta" ] ] } }
         ]
@@ -112,7 +106,7 @@
       "Properties" : {
         "VpcId" : { "Ref" : "Vpc" },
         "CidrBlock" : { "Fn::FindInMap" : [ "Region2Cidrs", { "Ref" : "AWS::Region" }, "subnetb" ] },
-        "AvailabilityZone" : { "Fn::Join": [ "", [ { "Ref" : "AWS::Region" }, "b" ] ] } },
+        "AvailabilityZone" : { "Fn::Join": [ "", [ { "Ref" : "AWS::Region" }, "b" ] ] },
         "Tags": [
           { "Key" : "Name", "Value" : { "Fn::Join": [ "-", [ { "Ref": "AWS::StackName"}, "subnetb" ] ] } }
         ]
@@ -204,7 +198,7 @@
       "Type" : "AWS::EC2::Instance",
       "DependsOn" : "InternetGateway",
       "Properties" : {
-        "AvailabilityZone" : { "Fn::Select" : [ "0", { "Ref" : "VpcAvailabilityZones" } ] },
+        "AvailabilityZone" : { "Fn::Join": [ "", [ { "Ref" : "AWS::Region" }, "a" ] ] },
         "ImageId" : { "Fn::FindInMap" : [ "Region2Amis", { "Ref" : "AWS::Region" }, "ami" ] },
         "InstanceType" : { "Ref" : "LocustioInstanceType" },
         "KeyName" : { "Ref" : "KeyName" },
@@ -266,8 +260,7 @@
       "DependsOn" : "MasterLocustioInstance",
       "Type" : "AWS::AutoScaling::AutoScalingGroup",
       "Properties" : {
-        "AvailabilityZones" :
-          [ { "Fn::Select" : [ "0", { "Ref" : "VpcAvailabilityZones" } ] }, { "Fn::Select" : [ "1", { "Ref" : "VpcAvailabilityZones" } ] }, { "Fn::Select" : [ "2", { "Ref" : "VpcAvailabilityZones" } ] } ],
+        "AvailabilityZones" : [ { "Fn::Join": [ "", [ { "Ref" : "AWS::Region" }, "a" ] ] }, { "Fn::Join": [ "", [ { "Ref" : "AWS::Region" }, "b" ] ] } ],
         "VPCZoneIdentifier" : [ { "Fn::Join" : [",", [ { "Ref" : "SubnetA" }, { "Ref" : "SubnetB" } ] ] } ],
         "LaunchConfigurationName" : { "Ref" : "SlaveLocustioInstanceLc" },
         "MinSize" : "1",
