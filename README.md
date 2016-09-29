@@ -1,2 +1,3 @@
 # AWS Locust.io load test
-Create a load test harness with a swarm of Locust nodes
+Create a Locust.io load test harness with one master and an auto-scaling group of slaves,
+all built from an Amazon Linux AMI
