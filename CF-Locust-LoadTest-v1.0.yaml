@@ -1,0 +1,459 @@
+
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create a Locust.io load test harness with one master and an auto-scaling
+  group of slaves, all built from an Amazon Linux AMI
+Mappings:
+  Region2Cidrs:
+    us-east-1:
+      vpc: 10.200.0.0/16
+      subneta: 10.200.0.0/24
+      subnetb: 10.200.1.0/24
+    us-west-1:
+      vpc: 10.201.0.0/16
+      subneta: 10.201.0.0/24
+      subnetb: 10.201.1.0/24
+    us-west-2:
+      vpc: 10.202.0.0/16
+      subneta: 10.202.0.0/24
+      subnetb: 10.202.1.0/24
+    ap-south-1:
+      vpc: 10.203.0.0/16
+      subneta: 10.203.0.0/24
+      subnetb: 10.203.1.0/24
+    ap-northeast-2:
+      vpc: 10.204.0.0/16
+      subneta: 10.204.0.0/24
+      subnetb: 10.204.1.0/24
+    ap-southeast-1:
+      vpc: 10.205.0.0/16
+      subneta: 10.205.0.0/24
+      subnetb: 10.205.1.0/24
+    ap-southeast-2:
+      vpc: 10.206.0.0/16
+      subneta: 10.206.0.0/24
+      subnetb: 10.206.1.0/24
+    ap-northeast-1:
+      vpc: 10.207.0.0/16
+      subneta: 10.207.0.0/24
+      subnetb: 10.207.1.0/24
+    eu-central-1:
+      vpc: 10.208.0.0/16
+      subneta: 10.208.0.0/24
+      subnetb: 10.208.1.0/24
+    eu-west-1:
+      vpc: 10.209.0.0/16
+      subneta: 10.209.0.0/24
+      subnetb: 10.209.1.0/24
+    sa-east-1:
+      vpc: 10.210.0.0/16
+      subneta: 10.210.0.0/24
+      subnetb: 10.210.1.0/24
+  Region2Amis:
+    us-east-1:
+      ami: ami-6869aa05
+    us-west-1:
+      ami: ami-31490d51
+    us-west-2:
+      ami: ami-7172b611
+    ap-south-1:
+      ami: ami-ffbdd790
+    ap-northeast-2:
+      ami: ami-2b408b45
+    ap-southeast-1:
+      ami: ami-a59b49c6
+    ap-southeast-2:
+      ami: ami-dc361ebf
+    ap-northeast-1:
+      ami: ami-374db956
+    eu-central-1:
+      ami: ami-ea26ce85
+    eu-west-1:
+      ami: ami-f9dd458a
+    sa-east-1:
+      ami: ami-6dd04501
+Parameters:
+  LocustioTargetHost:
+    Type: String
+    Description: URL of the service to be load tested
+    Default: http://andypowe11.net
+  LocustioConfigFile:
+    Type: String
+    Description: URL of a Locust.io load test configuration
+    Default: https://s3-eu-west-1.amazonaws.com/eduserv-dev-locustio/default.py
+  LocustioInstanceType:
+    Type: String
+    Description: EC2 instance type for the Locust.io master and slaves
+    Default: t2.micro
+    AllowedValues:
+    - t2.micro
+    - t2.small
+    - t2.medium
+    - t2.large
+    - m4.large
+    - m4.xlarge
+    - m4.2xlarge
+    - m4.4xlarge
+    - m4.10xlarge
+    - m3.medium
+    - m3.large
+    - m3.xlarge
+    - m3.2xlarge
+    - c4.large
+    - c4.xlarge
+    - c4.2xlarge
+    - c4.4xlarge
+    - c4.8xlarge
+    - c3.large
+    - c3.xlarge
+    - c3.2xlarge
+    - c3.4xlarge
+    - c3.8xlarge
+    - r3.large
+    - r3.xlarge
+    - r3.2xlarge
+    - r3.4xlarge
+    - r3.8xlarge
+    - i2.xlarge
+    - i2.2xlarge
+    - i2.4xlarge
+    - i2.8xlarge
+    ConstraintDescription: must be a valid EC2 instance type.
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the Locust.io
+      instances
+    Default: ''
+  NumSlaves:
+    Type: Number
+    Description: Number of Locust.io slaves
+    Default: '2'
+  AllowedSshSourceCidr:
+    Type: String
+    Description: Allowed source CIDR for remote SSH access
+    Default: 188.92.143.3/32
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock:
+        Fn::FindInMap:
+        - Region2Cidrs
+        - Ref: AWS::Region
+        - vpc
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Join:
+          - "-"
+          - - Ref: AWS::StackName
+            - vpc
+  SubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: Vpc
+      CidrBlock:
+        Fn::FindInMap:
+        - Region2Cidrs
+        - Ref: AWS::Region
+        - subneta
+      AvailabilityZone:
+        Fn::Join:
+        - ''
+        - - Ref: AWS::Region
+          - a
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Join:
+          - "-"
+          - - Ref: AWS::StackName
+            - subneta
+  SubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: Vpc
+      CidrBlock:
+        Fn::FindInMap:
+        - Region2Cidrs
+        - Ref: AWS::Region
+        - subnetb
+      AvailabilityZone:
+        Fn::Join:
+        - ''
+        - - Ref: AWS::Region
+          - b
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Join:
+          - "-"
+          - - Ref: AWS::StackName
+            - subnetb
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Join:
+          - "-"
+          - - Ref: AWS::StackName
+            - igw
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId:
+        Ref: Vpc
+      InternetGatewayId:
+        Ref: InternetGateway
+  RouteViaIgw:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: Vpc
+  PublicRouteViaIgw:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId:
+        Ref: RouteViaIgw
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref: InternetGateway
+  SubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: SubnetA
+      RouteTableId:
+        Ref: RouteViaIgw
+  SubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: SubnetB
+      RouteTableId:
+        Ref: RouteViaIgw
+  MasterLocustioSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Master Locust.io Allowed Ports
+      VpcId:
+        Ref: Vpc
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp:
+          Ref: AllowedSshSourceCidr
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: '5557'
+        ToPort: '5558'
+        SourceSecurityGroupId:
+          Ref: SlaveLocustioSecurityGroup
+      - IpProtocol: icmp
+        FromPort: '8'
+        ToPort: "-1"
+        CidrIp: 0.0.0.0/0
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Join:
+          - "-"
+          - - Ref: AWS::StackName
+            - mastersecuritygroup
+  SlaveLocustioSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Slave Locust.io Allowed Ports
+      VpcId:
+        Ref: Vpc
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp:
+          Ref: AllowedSshSourceCidr
+      - IpProtocol: icmp
+        FromPort: '8'
+        ToPort: "-1"
+        CidrIp: 0.0.0.0/0
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Join:
+          - "-"
+          - - Ref: AWS::StackName
+            - slavesecuritygroup
+  MasterLocustioInstance:
+    Type: AWS::EC2::Instance
+    DependsOn: InternetGateway
+    Properties:
+      AvailabilityZone:
+        Fn::Join:
+        - ''
+        - - Ref: AWS::Region
+          - a
+      ImageId:
+        Fn::FindInMap:
+        - Region2Amis
+        - Ref: AWS::Region
+        - ami
+      InstanceType:
+        Ref: LocustioInstanceType
+      KeyName:
+        Ref: KeyName
+      NetworkInterfaces:
+      - AssociatePublicIpAddress: 'true'
+        DeleteOnTermination: 'true'
+        DeviceIndex: '0'
+        SubnetId:
+          Ref: SubnetA
+        GroupSet:
+        - Ref: MasterLocustioSecurityGroup
+      UserData:
+        Fn::Base64:
+          Fn::Join:
+          - ''
+          - - "#!/bin/bash\n"
+            - 'yum -y update
+
+'
+            - 'yum -y groupinstall "Development Tools"
+
+'
+            - 'pip install pyzmq
+
+'
+            - 'pip install locustio
+
+'
+            - 'yum -y install wget
+
+'
+            - 'mkdir /locust
+
+'
+            - 'cd /locust
+
+'
+            - 'wget -O loadtest.py '
+            - Ref: LocustioConfigFile
+            - "\n"
+            - "/usr/local/bin/locust -f /locust/loadtest.py --host="
+            - Ref: LocustioTargetHost
+            - " --port 80 --master\n"
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Join:
+          - "-"
+          - - Ref: AWS::StackName
+            - master
+  SlaveLocustioInstanceLc:
+    DependsOn: MasterLocustioInstance
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId:
+        Fn::FindInMap:
+        - Region2Amis
+        - Ref: AWS::Region
+        - ami
+      InstanceType:
+        Ref: LocustioInstanceType
+      AssociatePublicIpAddress: true
+      KeyName:
+        Ref: KeyName
+      SecurityGroups:
+      - Ref: SlaveLocustioSecurityGroup
+      UserData:
+        Fn::Base64:
+          Fn::Join:
+          - ''
+          - - "#!/bin/bash\n"
+            - 'yum -y update
+
+'
+            - 'yum -y groupinstall "Development Tools"
+
+'
+            - 'pip install pyzmq
+
+'
+            - 'pip install locustio
+
+'
+            - 'yum -y install wget
+
+'
+            - 'mkdir /locust
+
+'
+            - 'yum -y install wget
+
+'
+            - 'cd /locust
+
+'
+            - 'wget -O loadtest.py '
+            - Ref: LocustioConfigFile
+            - "\n"
+            - "/usr/local/bin/locust -f /locust/loadtest.py --host="
+            - Ref: LocustioTargetHost
+            - " --slave --master-host "
+            - Fn::GetAtt:
+              - MasterLocustioInstance
+              - PrivateIp
+            - "\n"
+  SlaveLocustioInstanceAsg:
+    DependsOn: MasterLocustioInstance
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AvailabilityZones:
+      - Fn::Join:
+        - ''
+        - - Ref: AWS::Region
+          - a
+      - Fn::Join:
+        - ''
+        - - Ref: AWS::Region
+          - b
+      VPCZoneIdentifier:
+      - Fn::Join:
+        - ","
+        - - Ref: SubnetA
+          - Ref: SubnetB
+      LaunchConfigurationName:
+        Ref: SlaveLocustioInstanceLc
+      MinSize: '1'
+      MaxSize:
+        Ref: NumSlaves
+      DesiredCapacity:
+        Ref: NumSlaves
+      Tags:
+      - Key: Name
+        Value:
+          Fn::Join:
+          - "-"
+          - - Ref: AWS::StackName
+            - slave
+        PropagateAtLaunch: 'true'
+Outputs:
+  MasterURL:
+    Description: URL for the Locust.io master
+    Value:
+      Fn::Join:
+      - ''
+      - - http://
+        - Fn::GetAtt:
+          - MasterLocustioInstance
+          - PublicIp
+        - ":80/"
